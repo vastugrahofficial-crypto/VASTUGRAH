@@ -1,6 +1,6 @@
 import React from "react";
 
-export default function PageHeader({ eyebrow, title, description, children }) {
+export default function PageHeader({ eyebrow = "", title, description = "", children = null }) {
     return (
         <section className="relative overflow-hidden border-b border-border">
             <div className="absolute inset-0 grid-lines opacity-20" />

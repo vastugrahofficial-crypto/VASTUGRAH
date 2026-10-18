@@ -18,16 +18,18 @@ export default function Panchang() {
         setError(null);
         setPanchang(null);
 
-        try {
-            const result = getDailyPanchang(date);
-            if (!cancelled) {
-                setPanchang(result);
+        (async () => {
+            try {
+                const result = await getDailyPanchang(date);
+                if (!cancelled) {
+                    setPanchang(result);
+                }
+            } catch (e) {
+                if (!cancelled) setError("Could not load the Panchang — please try again.");
+            } finally {
+                if (!cancelled) setLoading(false);
             }
-        } catch (e) {
-            if (!cancelled) setError("Could not load the Panchang — please try again.");
-        } finally {
-            if (!cancelled) setLoading(false);
-        }
+        })();
 
         return () => {
             cancelled = true;

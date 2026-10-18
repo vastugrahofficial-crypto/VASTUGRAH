@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useEffect, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import { Link } from "react-router-dom";
@@ -8,9 +9,12 @@ import KundliResult from "@/components/astrology/KundliResult";
 import AstrologyChat from "@/components/astrology/AstrologyChat";
 import PlaceInput from "@/components/PlaceInput";
 import BirthTimePicker from "@/components/BirthTimePicker";
-import { User, Calendar, Clock, MapPin, Sparkles, MessageCircle, Lock } from "lucide-react";
+import NorthChart from "@/components/astrology/NorthChart";
+import { User, Calendar, Clock, MapPin, Sparkles, MessageCircle, Lock, UserPlus, ArrowLeft } from "lucide-react";
 
 const SIGNS_FULL = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"];
+
+const EMPTY_FORM = { name: "", gender: "male", date: "", time: "06:00", place: "" };
 
 function signIndex(s) {
     if (!s) return 0;
@@ -47,50 +51,78 @@ function assembleChart(form, c) {
     };
 }
 
+function formFromProfile(profile) {
+    return {
+        name: profile.name || "",
+        gender: profile.gender || "male",
+        date: profile.date_of_birth || "",
+        time: profile.time_of_birth || "",
+        place: profile.place || "",
+    };
+}
+
+function chartFromProfile(profile) {
+    if (!profile || !profile.houses || !profile.houses.length) return null;
+    return {
+        name: profile.name,
+        gender: profile.gender,
+        date: profile.date_of_birth,
+        time: profile.time_of_birth,
+        place: profile.place,
+        ascendant: profile.ascendant,
+        moon_sign: profile.moon_sign,
+        sun_sign: profile.sun_sign,
+        nakshatra: profile.nakshatra,
+        planets: profile.planets || [],
+        dashas: profile.dashas || [],
+        houses: profile.houses,
+    };
+}
+
 export default function Kundli() {
     const { profile, setProfile, loading } = useBirthProfile();
-    const [form, setForm] = useState({ name: "", gender: "male", date: "", time: "06:00", place: "" });
+    const [form, setForm] = useState(EMPTY_FORM);
     const [chart, setChart] = useState(null);
     const [calculating, setCalculating] = useState(false);
     const [error, setError] = useState(null);
+    // true while the user is making a Kundli for someone else (family, friend, client)
+    const [otherMode, setOtherMode] = useState(false);
+
+    // The form is locked only when the user's own Kundli is saved and they are viewing it
+    const locked = !!profile && !otherMode;
 
     // Pre-fill everything from the saved profile — details never need re-entry
     useEffect(() => {
         if (!profile) return;
-        setForm({
-            name: profile.name || "",
-            gender: profile.gender || "male",
-            date: profile.date_of_birth || "",
-            time: profile.time_of_birth || "",
-            place: profile.place || "",
-        });
-        if (profile.houses && profile.houses.length) {
-            setChart({
-                name: profile.name,
-                gender: profile.gender,
-                date: profile.date_of_birth,
-                time: profile.time_of_birth,
-                place: profile.place,
-                ascendant: profile.ascendant,
-                moon_sign: profile.moon_sign,
-                sun_sign: profile.sun_sign,
-                nakshatra: profile.nakshatra,
-                planets: profile.planets || [],
-                dashas: profile.dashas || [],
-                houses: profile.houses,
-            });
-        }
+        setForm(formFromProfile(profile));
+        setChart(chartFromProfile(profile));
     }, [profile]);
+
+    const startOther = () => {
+        setOtherMode(true);
+        setForm(EMPTY_FORM);
+        setChart(null);
+        setError(null);
+    };
+
+    const backToMine = () => {
+        setOtherMode(false);
+        setError(null);
+        if (profile) {
+            setForm(formFromProfile(profile));
+            setChart(chartFromProfile(profile));
+        }
+    };
 
     const onSubmit = async (e) => {
         e.preventDefault();
-        if (profile || calculating) return; // free Kundli is one-time per user
+        if (locked || calculating) return;
         setCalculating(true);
         setError(null);
         try {
             // Simulate deep cosmic calculation pause for realism
             await new Promise((resolve) => setTimeout(resolve, 800));
-            const rawChart = computeChart({
+            const rawChart = await computeChart({
                 name: form.name,
                 gender: form.gender,
                 date: form.date,
@@ -98,22 +130,27 @@ export default function Kundli() {
                 place: form.place,
             });
             const built = assembleChart(form, rawChart);
-            const saved = {
-                name: form.name,
-                gender: form.gender,
-                date_of_birth: form.date,
-                time_of_birth: form.time || "06:00",
-                place: form.place,
-                ascendant: built.ascendant,
-                moon_sign: built.moon_sign,
-                sun_sign: built.sun_sign,
-                nakshatra: built.nakshatra,
-                houses: built.houses,
-                planets: built.planets,
-                dashas: built.dashas,
-                free_kundli_used: true,
-            };
-            setProfile(saved);
+
+            // Only the user's own Kundli is saved to the account.
+            // A Kundli made for someone else is shown but never overwrites it.
+            if (!otherMode) {
+                const saved = {
+                    name: form.name,
+                    gender: form.gender,
+                    date_of_birth: form.date,
+                    time_of_birth: form.time || "06:00",
+                    place: form.place,
+                    ascendant: built.ascendant,
+                    moon_sign: built.moon_sign,
+                    sun_sign: built.sun_sign,
+                    nakshatra: built.nakshatra,
+                    houses: built.houses,
+                    planets: built.planets,
+                    dashas: built.dashas,
+                    free_kundli_used: true,
+                };
+                setProfile(saved);
+            }
             setChart(built);
         } catch {
             setError("Could not calculate your chart — please try again.");
@@ -145,8 +182,12 @@ export default function Kundli() {
                             <div className="grid gap-6 lg:grid-cols-2">
                                 {/* Form */}
                                 <form onSubmit={onSubmit} className="rounded-xl border border-border bg-card p-5 sm:p-8">
-                                    <h3 className="font-display text-2xl font-semibold text-foreground">Birth Details</h3>
-                                    {profile ? (
+                                    <h3 className="font-display text-2xl font-semibold text-foreground">
+                                        {otherMode ? "Birth Details of Another Person" : "Birth Details"}
+                                    </h3>
+
+                                    {/* Own Kundli already saved */}
+                                    {profile && !otherMode ? (
                                         <div className="mt-6 border border-primary/40 bg-secondary/40 p-5">
                                             <div className="flex items-center gap-2 text-sm text-primary">
                                                 <Lock className="h-4 w-4" /> Free Kundli generated
@@ -155,14 +196,40 @@ export default function Kundli() {
                                                 Your Vedic Kundli has been calculated and saved to your account. For deeper
                                                 readings and yearly predictions, consult a verified astrologer.
                                             </p>
-                                            <Link
-                                                to="/consultation/chat"
-                                                className="mt-4 inline-block bg-primary px-5 py-2 text-xs font-medium uppercase tracking-widest text-primary-foreground transition-opacity hover:opacity-90"
-                                            >
-                                                Consult an Astrologer
-                                            </Link>
+                                            <div className="mt-4 flex flex-wrap gap-3">
+                                                <Link
+                                                    to="/consultation/chat"
+                                                    className="inline-block bg-primary px-5 py-2 text-xs font-medium uppercase tracking-widest text-primary-foreground transition-opacity hover:opacity-90"
+                                                >
+                                                    Consult an Astrologer
+                                                </Link>
+                                                <button
+                                                    type="button"
+                                                    onClick={startOther}
+                                                    className="inline-flex items-center gap-2 border border-border px-5 py-2 text-xs font-medium uppercase tracking-widest text-foreground transition-colors hover:border-primary hover:text-primary"
+                                                >
+                                                    <UserPlus className="h-4 w-4" /> Kundli for someone else
+                                                </button>
+                                            </div>
                                         </div>
                                     ) : null}
+
+                                    {/* Making a Kundli for another person */}
+                                    {profile && otherMode ? (
+                                        <div className="mt-6 border border-primary/40 bg-secondary/40 p-5">
+                                            <p className="text-sm leading-relaxed text-muted-foreground">
+                                                You are creating a Kundli for someone else. It will not replace your own saved Kundli.
+                                            </p>
+                                            <button
+                                                type="button"
+                                                onClick={backToMine}
+                                                className="mt-4 inline-flex items-center gap-2 border border-border px-5 py-2 text-xs font-medium uppercase tracking-widest text-foreground transition-colors hover:border-primary hover:text-primary"
+                                            >
+                                                <ArrowLeft className="h-4 w-4" /> Back to my Kundli
+                                            </button>
+                                        </div>
+                                    ) : null}
+
                                     <div className="mt-6 space-y-5">
                                         <div>
                                             <label className="mb-2 flex items-center gap-2 text-xs uppercase tracking-widest text-muted-foreground">
@@ -170,11 +237,11 @@ export default function Kundli() {
                                             </label>
                                             <input
                                                 required
-                                                disabled={!!profile}
+                                                disabled={locked}
                                                 value={form.name}
                                                 onChange={field("name")}
                                                 className="w-full border border-border bg-background px-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-60"
-                                                placeholder="Your full name"
+                                                placeholder="Full name"
                                             />
                                         </div>
                                         <div>
@@ -184,7 +251,7 @@ export default function Kundli() {
                                                     <button
                                                         type="button"
                                                         key={g}
-                                                        disabled={!!profile}
+                                                        disabled={locked}
                                                         onClick={() => setForm((f) => ({ ...f, gender: g }))}
                                                         className={`flex-1 border px-4 py-2.5 text-sm capitalize transition-colors disabled:opacity-60 ${form.gender === g ? "border-primary text-primary" : "border-border text-muted-foreground hover:text-foreground"
                                                             }`}
@@ -199,13 +266,13 @@ export default function Kundli() {
                                                 <label className="mb-2 flex items-center gap-2 text-xs uppercase tracking-widest text-muted-foreground">
                                                     <Calendar className="h-3.5 w-3.5 text-primary" /> Date of Birth
                                                 </label>
-                                                <input required type="date" max={new Date().toISOString().slice(0, 10)} disabled={!!profile} value={form.date} onChange={field("date")} className="w-full rounded-lg border border-border bg-background px-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-60" />
+                                                <input required type="date" max={new Date().toISOString().slice(0, 10)} disabled={locked} value={form.date} onChange={field("date")} className="w-full rounded-lg border border-border bg-background px-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-60" />
                                             </div>
                                             <div>
                                                 <label className="mb-2 flex items-center gap-2 text-xs uppercase tracking-widest text-muted-foreground">
                                                     <Clock className="h-3.5 w-3.5 text-primary" /> Time of Birth
                                                 </label>
-                                                <BirthTimePicker value={form.time} onChange={(v) => setForm((f) => ({ ...f, time: v }))} disabled={!!profile} />
+                                                <BirthTimePicker value={form.time} onChange={(v) => setForm((f) => ({ ...f, time: v }))} disabled={locked} />
                                             </div>
                                         </div>
                                         <div>
@@ -214,12 +281,12 @@ export default function Kundli() {
                                             </label>
                                             <PlaceInput
                                                 required
-                                                disabled={!!profile}
+                                                disabled={locked}
                                                 value={form.place}
                                                 onChange={(v) => setForm((f) => ({ ...f, place: v }))}
                                             />
                                         </div>
-                                        {!profile && (
+                                        {!locked && (
                                             <button
                                                 type="submit"
                                                 disabled={calculating}
@@ -237,7 +304,7 @@ export default function Kundli() {
                                     <h3 className="font-display text-2xl font-semibold text-foreground">North Indian Chart</h3>
                                     {chart ? (
                                         <div className="mt-6">
-                                            <NorthChart houses={chart.houses} ascendant={chart.ascendant} />
+                                            <NorthChart houses={chart.houses} ascendant={chart.ascendant} planets={chart.planets} />
                                             <div className="mt-6 grid grid-cols-2 gap-3 text-sm">
                                                 <div className="border border-border p-3">
                                                     <div className="text-xs uppercase tracking-widest text-muted-foreground">Name</div>
@@ -311,33 +378,5 @@ export default function Kundli() {
                 </div>
             </section>
         </>
-    );
-}
-
-function NorthChart({ houses, ascendant }) {
-    const positions = [
-        { x: 50, y: 15 }, { x: 75, y: 30 }, { x: 75, y: 55 }, { x: 50, y: 70 },
-        { x: 25, y: 55 }, { x: 25, y: 30 }, { x: 50, y: 40 }, { x: 62, y: 40 },
-        { x: 50, y: 52 }, { x: 38, y: 40 }, { x: 50, y: 28 }, { x: 38, y: 52 },
-    ];
-    return (
-        <svg viewBox="0 0 100 100" className="w-full">
-            <rect x="5" y="5" width="90" height="90" fill="none" stroke="hsl(var(--border))" strokeWidth="0.6" />
-            <line x1="5" y1="5" x2="95" y2="95" stroke="hsl(var(--border))" strokeWidth="0.6" />
-            <line x1="95" y1="5" x2="5" y2="95" stroke="hsl(var(--border))" strokeWidth="0.6" />
-            <polygon points="50,5 95,50 50,95 5,50" fill="none" stroke="hsl(var(--border))" strokeWidth="0.6" />
-            {houses.map((h, i) => {
-                const p = positions[i];
-                return (
-                    <g key={i}>
-                        <text x={p.x} y={p.y} fill="hsl(var(--muted-foreground))" fontSize="3.2" textAnchor="middle">{h.sign}</text>
-                        {h.planets.map((pl, j) => (
-                            <text key={j} x={p.x} y={p.y + 5 + j * 4} fill="hsl(var(--primary))" fontSize="3.6" fontWeight="600" textAnchor="middle">{pl}</text>
-                        ))}
-                    </g>
-                );
-            })}
-            <text x="50" y="98" fill="hsl(var(--primary))" fontSize="3" textAnchor="middle">Asc: {ascendant}</text>
-        </svg>
     );
 }

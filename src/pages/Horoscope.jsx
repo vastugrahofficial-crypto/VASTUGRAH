@@ -163,6 +163,36 @@ export default function Horoscope() {
                                             </div>
                                         ))}
                                     </div>
+
+                                    {horo.sections && horo.sections.length > 0 && (
+                                        <div className="mt-10">
+                                            <h4 className="font-display text-xl font-semibold text-foreground">Planetary Guidance by Life Domain</h4>
+                                            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                                                {horo.sections.map((sec) => (
+                                                    <div key={sec.key} className="border border-border bg-card/60 p-5 rounded-lg">
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="text-xs font-semibold uppercase tracking-wider text-primary capitalize">{sec.key}</span>
+                                                            <span className={`text-[10px] uppercase tracking-widest px-2 py-0.5 rounded border ${
+                                                                sec.tone === "supportive"
+                                                                    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                                                                    : sec.tone === "cautious"
+                                                                    ? "border-amber-500/30 bg-amber-500/10 text-amber-400"
+                                                                    : "border-border bg-secondary text-muted-foreground"
+                                                            }`}>
+                                                                {sec.tone}
+                                                            </span>
+                                                        </div>
+                                                        <p className="mt-3 text-xs leading-relaxed text-muted-foreground">{sec.text}</p>
+                                                        {sec.advice && (
+                                                            <div className="mt-3 border-t border-border/50 pt-2 text-[11px] text-foreground/80 font-medium">
+                                                                💡 <span className="text-muted-foreground font-normal">Advice:</span> {sec.advice}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </>
                             )}
                         </div>

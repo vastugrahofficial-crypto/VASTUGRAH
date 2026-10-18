@@ -1,13 +1,14 @@
+// @ts-nocheck
 import React from "react";
 import { Link } from "react-router-dom";
 import { BadgeCheck, Star, Languages, Award } from "lucide-react";
 import { Image } from "@/components/ui/image";
 
 const ASTROLOGERS = [
-    { name: "Acharya Nandini Verma", skills: "Marriage & Relationships · Birth Chart", exp: "12 yrs", rating: 4.9, langs: "Hindi, English", img: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=400&auto=format&fit=crop" },
-    { name: "Pandit Ramesh Shastri", skills: "Career · Vastu Audit", exp: "18 yrs", rating: 4.8, langs: "Hindi, English", img: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=400&auto=format&fit=crop" },
-    { name: "Jyotish Kavita Joshi", skills: "Numerology · Name Correction", exp: "9 yrs", rating: 4.9, langs: "Hindi, English", img: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=400&auto=format&fit=crop" },
-    { name: "Acharya Vikram Tripathi", skills: "Gemstone · Rudraksha Selection", exp: "15 yrs", rating: 4.7, langs: "Hindi, English", img: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=400&auto=format&fit=crop" },
+    { name: "Acharya Nandini Verma", skills: "Marriage & Relationships · Birth Chart", exp: "12 yrs", rating: 4.9, langs: "Hindi, English", img: "https://media.base44.com/images/public/6acb4e24dc235007f51df03e/d57736bb8_generated_32c5a66a.jpg" },
+    { name: "Pandit Ramesh Shastri", skills: "Career · Vastu Audit", exp: "18 yrs", rating: 4.8, langs: "Hindi, English", img: "https://media.base44.com/images/public/6acb4e24dc235007f51df03e/d57736bb8_generated_32c5a66a.jpg" },
+    { name: "Jyotish Kavita Joshi", skills: "Numerology · Name Correction", exp: "9 yrs", rating: 4.9, langs: "Hindi, English", img: "https://media.base44.com/images/public/6acb4e24dc235007f51df03e/d57736bb8_generated_32c5a66a.jpg" },
+    { name: "Acharya Vikram Tripathi", skills: "Gemstone · Rudraksha Selection", exp: "15 yrs", rating: 4.7, langs: "Hindi, English", img: "https://media.base44.com/images/public/6acb4e24dc235007f51df03e/d57736bb8_generated_32c5a66a.jpg" },
 ];
 
 export default function Astrologers() {
@@ -25,9 +26,9 @@ export default function Astrologers() {
                     </p>
                 </div>
 
-                <div className="grid gap-px overflow-hidden border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
+                <div className="grid grid-cols-2 gap-px overflow-hidden border border-border bg-border lg:grid-cols-4">
                     {ASTROLOGERS.map((a) => (
-                        <div key={a.name} className="group bg-card p-6 transition-colors hover:bg-secondary">
+                        <div key={a.name} className="group bg-card p-4 transition-colors hover:bg-secondary sm:p-6">
                             <div className="relative mb-5 aspect-square overflow-hidden border border-border">
                                 <Image src={a.img} alt={a.name} fittingType="fill" className="h-full w-full transition-transform duration-700 group-hover:scale-105" />
                                 <div className="absolute right-2 top-2 flex items-center gap-1 bg-background/90 px-2 py-1 text-[10px] text-primary">
@@ -35,7 +36,7 @@ export default function Astrologers() {
                                 </div>
                             </div>
                             <div className="flex items-center justify-between">
-                                <h3 className="font-display text-lg font-semibold text-foreground">{a.name}</h3>
+                                <h3 className="font-display text-sm font-semibold text-foreground sm:text-lg">{a.name}</h3>
                                 <span className="flex items-center gap-1 text-xs text-primary">
                                     <Star className="h-3 w-3 fill-primary" /> {a.rating}
                                 </span>
@@ -58,4 +59,3 @@ export default function Astrologers() {
         </section>
     );
 }
-

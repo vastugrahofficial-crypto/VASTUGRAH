@@ -1,7 +1,8 @@
 // VASTUGRAH Vedic Astrology & Panchang Engine
-// Self-contained Vedic calculations with optional Gemini AI enhancement
+// Powered by server-side FreeAstroAPI integration with resilient offline fallback
 
 import { askAstrologer, getDailyHoroscope as geminiDailyHoroscope } from './gemini';
+import { INDIAN_CITIES } from './cities';
 
 const NAKSHATRAS = [
   "Ashwini", "Bharani", "Krittika", "Rohini", "Mrigashira", "Ardra",
@@ -32,7 +33,7 @@ const KARANAS = ["Bava", "Balava", "Kaulava", "Taitila", "Gara", "Vanija", "Vish
 
 const RASHIS = ["Mesha (Aries)", "Vrishabha (Taurus)", "Mithuna (Gemini)", "Karka (Cancer)", "Simha (Leo)", "Kanya (Virgo)", "Tula (Libra)", "Vrishchika (Scorpio)", "Dhanu (Sagittarius)", "Makara (Capricorn)", "Kumbha (Aquarius)", "Meena (Pisces)"];
 
-const PLANET_NAMES = ["Surya (Sun)", "Chandra (Moon)", "Mangal (Mars)", "Budha (Mercury)", "Guru (Jupiter)", "Shukra (Venus)", "Shani (Saturn)", "Rahu", "Ketu"];
+const SIGNS_FULL = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"];
 
 // Seeded pseudorandom from date or string
 function getHash(str) {
@@ -44,7 +45,8 @@ function getHash(str) {
   return Math.abs(hash);
 }
 
-export function getDailyPanchang(dateStr) {
+// Local Panchang computation fallback
+export function getLocalDailyPanchang(dateStr) {
   const d = dateStr ? new Date(dateStr) : new Date();
   const dayKey = d.toISOString().slice(0, 10);
   const hash = getHash(dayKey);
@@ -92,7 +94,69 @@ export function getDailyPanchang(dateStr) {
   };
 }
 
-const HOROSCOPE_DATA = {
+/**
+ * Fetch Live Panchang via server-side FreeAstroAPI proxy with local fallback
+ */
+export async function getDailyPanchang(dateStr, coords) {
+  try {
+    const d = dateStr ? new Date(dateStr) : new Date();
+    const year = d.getFullYear();
+    const month = d.getMonth() + 1;
+    const day = d.getDate();
+    const lat = coords?.lat || 28.6139;
+    const lng = coords?.lng || coords?.lon || 77.2090;
+
+    const res = await fetch("/api/astrology/panchang", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        year,
+        month,
+        day,
+        hour: 12,
+        minute: 0,
+        city: "New Delhi",
+        lat,
+        lng,
+        tz_str: "Asia/Kolkata",
+      }),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      const tithiStr = data.tithi?.paksha
+        ? `${data.tithi.name} (${data.tithi.paksha} Paksha)`
+        : (data.tithi?.name || "Shukla Pratipada");
+      const nakshatraStr = data.nakshatra
+        ? `${data.nakshatra.name}${data.nakshatra.pada ? ` (Pada ${data.nakshatra.pada})` : ""}`
+        : "Ashwini";
+      const moonSign = data.request_time_panchang?.moon_sign?.name
+        ? `${data.request_time_panchang.moon_sign.name}`
+        : (data.lunar_month?.name || "Mesha (Aries)");
+
+      return {
+        tithi: tithiStr,
+        nakshatra: nakshatraStr,
+        yoga: data.yoga?.name || "Siddhi",
+        karana: data.karanas?.[0]?.name || "Bava",
+        moon_sign: moonSign,
+        rahu_kaal: data.rahu_kalam?.start ? `${data.rahu_kalam.start} – ${data.rahu_kalam.end}` : "10:30 AM – 12:00 PM",
+        abhijit_muhurat: "11:48 AM – 12:36 PM",
+        amrit_kaal: "02:14 PM – 03:48 PM",
+        brahma_muhurat: "04:32 AM – 05:20 AM",
+        significance: `Auspicious ${data.tithi?.paksha || "Shukla"} Paksha day under ${data.nakshatra?.name || "favourable"} Nakshatra. Perfect for dharmic activities, home harmony and spiritual focus.`,
+        sunrise: data.sunrise || "06:15 AM",
+        sunset: data.sunset || "06:30 PM",
+      };
+    }
+  } catch (err) {
+    console.warn("[VASTUGRAH] FreeAstroAPI Panchang unavailable, using local calculation:", err);
+  }
+
+  return getLocalDailyPanchang(dateStr);
+}
+
+export const HOROSCOPE_DATA = {
   Aries: {
     forecast: "Mars activates your house of ambition. Your drive and conviction will open doors in professional endeavors today. In personal matters, patience will be your greatest ally against impulsive reactions.",
     lucky_number: 9,
@@ -179,8 +243,33 @@ const HOROSCOPE_DATA = {
   }
 };
 
+/**
+ * Fetch Daily Horoscope via server-side FreeAstroAPI proxy
+ */
 export async function getDailyHoroscope(signName) {
-  // If Gemini API is available and desired, we can query it
+  // 1. Try FreeAstroAPI live server endpoint
+  try {
+    const res = await fetch(`/api/astrology/horoscope?sign=${encodeURIComponent(signName.toLowerCase())}`);
+    if (res.ok) {
+      const data = await res.json();
+      const interp = data?.data?.interpretation;
+      if (interp && interp.summary) {
+        return {
+          forecast: interp.summary,
+          sections: interp.sections || [],
+          overall_tone: interp.overall_tone || "supportive",
+          lucky_number: (getHash(signName) % 9) + 1,
+          lucky_color: HOROSCOPE_DATA[signName]?.lucky_color || "Saffron Gold",
+          favourable_direction: HOROSCOPE_DATA[signName]?.favourable_direction || "East",
+          remedy: HOROSCOPE_DATA[signName]?.remedy || "Chant Gayatri Mantra daily.",
+        };
+      }
+    }
+  } catch (err) {
+    console.warn("[VASTUGRAH] FreeAstroAPI horoscope error, trying Gemini/fallback:", err);
+  }
+
+  // 2. Fall back to Gemini API if configured
   try {
     if (import.meta.env.VITE_GEMINI_API_KEY) {
       const text = await geminiDailyHoroscope(signName);
@@ -201,7 +290,8 @@ export async function getDailyHoroscope(signName) {
   return HOROSCOPE_DATA[signName] || HOROSCOPE_DATA["Aries"];
 }
 
-export function computeChart({ name, gender, date, time, place }) {
+// Local deterministic Kundli calculation fallback
+function computeLocalChart({ name, gender, date, time, place }) {
   const hash = getHash(`${name}_${date}_${time}_${place}`);
   const ascIdx = hash % 12;
   const moonIdx = (hash + 3) % 12;
@@ -223,9 +313,9 @@ export function computeChart({ name, gender, date, time, place }) {
   ];
 
   const dashas = [
-    { planet: "Jupiter", start: "2018", end: "2034", current: true },
-    { planet: "Saturn", start: "2034", end: "2053", current: false },
-    { planet: "Mercury", start: "2053", end: "2070", current: false }
+    { lord: "Jupiter", start: "2018", end: "2034", current: true },
+    { lord: "Saturn", start: "2034", end: "2053", current: false },
+    { lord: "Mercury", start: "2053", end: "2070", current: false }
   ];
 
   return {
@@ -239,6 +329,111 @@ export function computeChart({ name, gender, date, time, place }) {
     planets,
     dashas
   };
+}
+
+// Convert FreeAstroAPI response to VASTUGRAH standard chart format
+function mapFreeAstroChart(chart, dashaData, form) {
+  const asc = chart.ascendant;
+  const planets = chart.planets || [];
+
+  const moonPlanet = planets.find((p) => p.name?.toLowerCase() === "moon");
+  const sunPlanet = planets.find((p) => p.name?.toLowerCase() === "sun");
+
+  const mappedPlanets = planets.map((p) => ({
+    planet: p.name,
+    sign: p.sign,
+    house: p.house,
+    degree: p.degree_in_sign != null ? p.degree_in_sign.toFixed(2) : p.absolute_degree?.toFixed(2),
+    nakshatra: p.nakshatra,
+    retrograde: Boolean(p.is_retrograde),
+  }));
+
+  let dashas = [];
+  if (dashaData?.dasha_timeline && Array.isArray(dashaData.dasha_timeline)) {
+    dashas = dashaData.dasha_timeline.map((d) => ({
+      lord: d.lord || d.planet || "Graha",
+      start: String(d.start_date || d.start || "").slice(0, 4),
+      end: String(d.end_date || d.end || "").slice(0, 4),
+      current: Boolean(d.is_active || d.current),
+    }));
+  } else if (dashaData?.mahadashas && Array.isArray(dashaData.mahadashas)) {
+    dashas = dashaData.mahadashas.map((d) => ({
+      lord: d.lord || d.planet || "Graha",
+      start: String(d.start_year || d.start || "").slice(0, 4),
+      end: String(d.end_year || d.end || "").slice(0, 4),
+      current: Boolean(d.current),
+    }));
+  } else {
+    dashas = [
+      { lord: moonPlanet?.nakshatra_lord || "Jupiter", start: "2018", end: "2034", current: true },
+      { lord: "Saturn", start: "2034", end: "2053", current: false },
+      { lord: "Mercury", start: "2053", end: "2070", current: false },
+    ];
+  }
+
+  const activeDasha = dashas.find((d) => d.current) || dashas[0];
+  const currentMahadasha = activeDasha ? `${activeDasha.lord}` : (moonPlanet?.nakshatra_lord || "Jupiter");
+
+  return {
+    ascendant: asc?.sign || "Aries",
+    moon_sign: moonPlanet?.sign || "Taurus",
+    sun_sign: sunPlanet?.sign || "Leo",
+    nakshatra: moonPlanet?.nakshatra || asc?.nakshatra?.name || "Ashwini",
+    nakshatra_pada: moonPlanet?.pada || asc?.nakshatra?.pada || 1,
+    nakshatra_lord: moonPlanet?.nakshatra_lord || asc?.nakshatra?.lord || "Mars",
+    current_mahadasha: currentMahadasha,
+    planets: mappedPlanets,
+    dashas,
+    sade_sati: chart.sade_sati,
+  };
+}
+
+/**
+ * Compute Vedic Kundli Chart via server-side FreeAstroAPI proxy
+ */
+export async function computeChart({ name, gender, date, time, place }) {
+  try {
+    const [year, month, day] = (date || "1995-01-01").split("-").map(Number);
+    const [hour, minute] = (time || "12:00").split(":").map(Number);
+
+    const matchedCity = INDIAN_CITIES.find(
+      (c) =>
+        c.name.toLowerCase() === (place || "").toLowerCase() ||
+        (place || "").toLowerCase().includes(c.name.toLowerCase())
+    );
+
+    const payload = {
+      year,
+      month,
+      day,
+      hour: hour || 12,
+      minute: minute || 0,
+      city: matchedCity?.name || place || "New Delhi",
+      lat: matchedCity?.lat || 28.6139,
+      lng: matchedCity?.lon || 77.2090,
+      tz_str: matchedCity?.timezone || "Asia/Kolkata",
+      ayanamsha: "lahiri",
+      house_system: "whole_sign",
+      node_type: "mean",
+    };
+
+    const res = await fetch("/api/astrology/chart", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.chart) {
+        return mapFreeAstroChart(data.chart, data.dasha, { name, gender, date, time, place });
+      }
+    }
+  } catch (err) {
+    console.warn("[VASTUGRAH] FreeAstroAPI chart error, using local fallback:", err);
+  }
+
+  return computeLocalChart({ name, gender, date, time, place });
 }
 
 // Local birth profile storage

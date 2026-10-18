@@ -9,7 +9,7 @@ export default function Hero() {
             {/* Background image */}
             <div className="absolute inset-0">
                 <Image
-                    src="https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop"
+                    src="https://media.base44.com/images/public/6acb4e24dc235007f51df03e/45ccaed33_generated_image.png"
                     alt="Brass vastu compass on cream linen"
                     fittingType="fill"
                     className="h-full w-full opacity-60"
@@ -46,7 +46,7 @@ export default function Hero() {
 
                     <div className="mt-10 flex flex-wrap items-center gap-4">
                         <Link
-                            to="/ai-astrologer"
+                            to="/kundli"
                             className="group inline-flex items-center gap-2 bg-primary px-7 py-3.5 text-sm font-medium uppercase tracking-widest text-primary-foreground transition-all hover:glow-copper"
                         >
                             Begin Your Alignment

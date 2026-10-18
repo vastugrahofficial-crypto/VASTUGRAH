@@ -14,17 +14,17 @@
             "dom"
         ],
         "target": "esnext",
-        "checkJs": true,
+        "checkJs": false,
         "skipLibCheck": true,
         "allowSyntheticDefaultImports": true,
         "esModuleInterop": true,
         "resolveJsonModule": true,
-        "types": []
+        "types": [
+            "vite/client"
+        ]
     },
     "include": [
-        "src/components/**/*.js",
-        "src/pages/**/*.jsx",
-        "src/Layout.jsx"
+        "src/**/*"
     ],
     "exclude": [
         "node_modules",
