@@ -75,33 +75,48 @@ export default function AstrologyChat({ personaName = "Vedic Acharya", kundli = 
   const [sending, setSending] = useState(false);
   const [error, setError] = useState(null);
   const scrollRef = useRef(null);
-  const bootRef = useRef(false);
 
-  // Auto-generate the initial kundli reading once
+  // Identifies which chart the chat is about. The kundli object is rebuilt on every render
+  // of the parent, so we compare this stable string instead of the object itself.
+  const kundliKey = kundli
+    ? [kundli.name, kundli.date_of_birth, kundli.time_of_birth, kundli.place_of_birth, kundli.ascendant].join("|")
+    : "";
+  const lastKeyRef = useRef(null);
+  // Bumped whenever a new chart arrives, so replies for an older chart can be discarded
+  const reqRef = useRef(0);
+
+  // Auto-generate a reading once for each new chart (not on every re-render)
   useEffect(() => {
-    if (!kundli || !autoReading || bootRef.current) return;
-    bootRef.current = true;
+    if (!kundli || !autoReading) return;
+    if (lastKeyRef.current === kundliKey) return;
+    lastKeyRef.current = kundliKey;
+
+    const reqId = ++reqRef.current;
+    setMessages([]);
+    setError(null);
+
     (async () => {
       setSending(true);
+      let reply;
       try {
         if (import.meta.env.VITE_GEMINI_API_KEY) {
-          const reply = await askAstrologer(
+          reply = await askAstrologer(
             [],
             `Provide a welcoming initial Vedic Kundli analysis for ${kundli.name}, Ascendant: ${kundli.ascendant}, Moon Sign: ${kundli.moon_sign}, Nakshatra: ${kundli.nakshatra}. Keep it inspiring and under 150 words.`
           );
-          setMessages([{ role: "assistant", content: reply }]);
         } else {
-          const reply = generateLocalVedicReply("greeting", personaName, kundli);
-          setMessages([{ role: "assistant", content: reply }]);
+          reply = generateLocalVedicReply("greeting", personaName, kundli);
         }
       } catch {
-        const reply = generateLocalVedicReply("greeting", personaName, kundli);
-        setMessages([{ role: "assistant", content: reply }]);
-      } finally {
-        setSending(false);
+        reply = generateLocalVedicReply("greeting", personaName, kundli);
       }
+      // A newer chart replaced this one while we were waiting — drop this reply
+      if (reqId !== reqRef.current) return;
+      setMessages([{ role: "assistant", content: reply }]);
+      setSending(false);
     })();
-  }, [kundli, personaName, autoReading]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kundliKey, autoReading]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -111,32 +126,31 @@ export default function AstrologyChat({ personaName = "Vedic Acharya", kundli = 
   const send = async (text) => {
     const content = (text ?? input).trim();
     if (!content || sending) return;
+    const reqId = reqRef.current;
+    const history = messages.slice(-10); // earlier messages only; the new one is passed separately
     const next = [...messages, { role: "user", content }];
     setMessages(next);
     setInput("");
     setError(null);
     setSending(true);
 
+    let reply;
     try {
       if (import.meta.env.VITE_GEMINI_API_KEY) {
-        const reply = await askAstrologer(
-          next.slice(-10),
-          content
-        );
-        setMessages([...next, { role: "assistant", content: reply }]);
+        reply = await askAstrologer(history, content);
       } else {
         // High-quality local Vedic response engine
         await new Promise((resolve) => setTimeout(resolve, 600));
-        const reply = generateLocalVedicReply(content, personaName, kundli);
-        setMessages([...next, { role: "assistant", content: reply }]);
+        reply = generateLocalVedicReply(content, personaName, kundli);
       }
-    } catch (err) {
+    } catch {
       // Fallback gracefully to local knowledge
-      const fallbackReply = generateLocalVedicReply(content, personaName, kundli);
-      setMessages([...next, { role: "assistant", content: fallbackReply }]);
-    } finally {
-      setSending(false);
+      reply = generateLocalVedicReply(content, personaName, kundli);
     }
+    // The chart changed while waiting; the new reading owns the chat now
+    if (reqId !== reqRef.current) return;
+    setMessages([...next, { role: "assistant", content: reply }]);
+    setSending(false);
   };
 
   return (
@@ -157,8 +171,8 @@ export default function AstrologyChat({ personaName = "Vedic Acharya", kundli = 
           <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
             <div
               className={`max-w-[85%] px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${m.role === "user"
-                  ? "bg-primary text-primary-foreground"
-                  : "border border-border bg-card text-foreground"
+                ? "bg-primary text-primary-foreground"
+                : "border border-border bg-card text-foreground"
                 }`}
             >
               {m.content}

@@ -40,6 +40,13 @@ const PLANETS = [
     { name: "Shani", glyph: "♄", pos: "Aquarius 23°" },
 ];
 
+// Social media links — edit the URLs here
+const SOCIALS = [
+    { label: "Instagram", href: "https://instagram.com/vastugrah", Icon: Instagram },
+    { label: "Facebook", href: "https://www.facebook.com/vastugrah", Icon: Facebook },
+    { label: "YouTube", href: "https://youtube.com/@vastugrahofficial", Icon: Youtube },
+];
+
 export default function Footer() {
     return (
         <footer className="border-t border-border bg-background">
@@ -112,15 +119,18 @@ export default function Footer() {
                     <p className="text-xs text-muted-foreground">
                         © {new Date().getFullYear()} VASTUGRAH. All celestial rights reserved.
                     </p>
-                    <div className="flex items-center gap-4">
-                        {[Instagram, Facebook, Youtube].map((Icon, i) => (
+                    <div className="flex items-center gap-1">
+                        {SOCIALS.map(({ label, href, Icon }) => (
                             <a
-                                key={i}
-                                href="#"
-                                className="text-muted-foreground transition-colors hover:text-primary"
-                                aria-label="social"
+                                key={label}
+                                href={href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title={label}
+                                aria-label={`VASTUGRAH on ${label}`}
+                                className="rounded-full p-2.5 text-foreground/70 transition-colors hover:text-primary"
                             >
-                                <Icon className="h-4 w-4" />
+                                <Icon className="h-6 w-6" />
                             </a>
                         ))}
                     </div>
