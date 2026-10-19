@@ -23,13 +23,6 @@ export default function Hero() {
 
             <div className="relative mx-auto flex min-h-[88vh] max-w-7xl flex-col justify-center px-6 py-12 sm:py-24">
                 <div className="max-w-3xl fade-up">
-                    <div className="mb-6 inline-flex items-center gap-2 border border-primary/40 px-4 py-1.5">
-                        <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-                        <span className="text-xs uppercase tracking-[0.3em] text-primary">
-                            Inspired by Acharya Varahamihira
-                        </span>
-                    </div>
-
                     <h1 className="font-display text-6xl font-semibold leading-[0.95] tracking-tight text-foreground sm:text-7xl lg:text-8xl">
                         VASTU<span className="text-primary">GRAH</span>
                     </h1>
