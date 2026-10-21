@@ -20,8 +20,29 @@ function setCache(key, data) {
   cache.set(key, { time: Date.now(), data });
 }
 
-// Helper to safely parse incoming JSON request body from Node stream
+// Helper to safely parse incoming JSON request body.
+// - On Vercel, req.body is already parsed for us.
+// - On plain Node (Vite dev server / server/index.js), read it from the stream.
 function parseBody(req) {
+  if (req.body !== undefined && req.body !== null) {
+    if (typeof req.body === "string") {
+      try {
+        return Promise.resolve(req.body.trim() ? JSON.parse(req.body) : {});
+      } catch {
+        return Promise.reject(new Error("Invalid JSON body"));
+      }
+    }
+    if (Buffer.isBuffer(req.body)) {
+      try {
+        const text = req.body.toString("utf8");
+        return Promise.resolve(text.trim() ? JSON.parse(text) : {});
+      } catch {
+        return Promise.reject(new Error("Invalid JSON body"));
+      }
+    }
+    return Promise.resolve(req.body);
+  }
+
   return new Promise((resolve, reject) => {
     let body = "";
     req.on("data", (chunk) => {
@@ -55,7 +76,7 @@ function sendJson(res, statusCode, data) {
 async function fetchFreeAstro(endpoint, options = {}, retries = 2) {
   const apiKey = process.env.FREE_ASTRO_API_KEY;
   if (!apiKey) {
-    throw new Error("FREE_ASTRO_API_KEY is not configured in backend environment (.env)");
+    throw new Error("FREE_ASTRO_API_KEY is not configured in backend environment (.env / Vercel env vars)");
   }
 
   const url = `${FREE_ASTRO_BASE}${endpoint}`;
@@ -91,7 +112,8 @@ async function fetchFreeAstro(endpoint, options = {}, retries = 2) {
 
 /**
  * Main astrology API middleware handler
- * Mountable directly in Vite server middleware or Connect/Express apps
+ * Mountable directly in Vite server middleware, Connect/Express apps,
+ * or called from a Vercel serverless function (api/astrology/[...path].js)
  */
 export async function astrologyApiMiddleware(req, res, next) {
   // Only intercept /api/astrology routes
