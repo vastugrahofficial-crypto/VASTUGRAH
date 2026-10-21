@@ -25,13 +25,13 @@
     },
     "include": [
         "src/**/*"
-    ],
+, "api"    ],
     "exclude": [
         "node_modules",
         "dist",
         "src/vite-plugins",
         "src/components/ui",
-        "src/api",
+        "api",
         "src/lib"
     ]
 }

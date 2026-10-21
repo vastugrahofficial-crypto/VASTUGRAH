@@ -1,8 +1,9 @@
 {
   "functions": {
-    "api/**/*.js": { "maxDuration": 30 }
+    "api/*.js": { "maxDuration": 30 }
   },
   "rewrites": [
+    { "source": "/api/astrology/:path*", "destination": "/api/astrology" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }
