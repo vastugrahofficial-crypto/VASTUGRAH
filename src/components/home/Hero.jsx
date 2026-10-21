@@ -1,18 +1,19 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { ArrowUpRight } from "lucide-react";
-import { Image } from "@/components/ui/image";
+
+// Hero background. To host it yourself: save the picture into public/images/ and use "/images/hero.png".
+const HERO_IMAGE = "https://media.base44.com/images/public/6acb4e24dc235007f51df03e/45ccaed33_generated_image.png";
 
 export default function Hero() {
     return (
         <section className="relative overflow-hidden border-b border-border">
             {/* Background image */}
             <div className="absolute inset-0">
-                <Image
-                    src="https://media.base44.com/images/public/6acb4e24dc235007f51df03e/45ccaed33_generated_image.png"
+                <img
+                    src={HERO_IMAGE}
                     alt="Brass vastu compass on cream linen"
-                    fittingType="fill"
-                    className="h-full w-full opacity-60"
+                    className="h-full w-full object-cover opacity-60"
                 />
                 <div className="absolute inset-0 bg-gradient-to-r from-background via-background/80 to-background/30" />
                 <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-background/60" />

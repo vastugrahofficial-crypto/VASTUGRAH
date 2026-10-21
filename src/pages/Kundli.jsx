@@ -17,7 +17,8 @@ const EMPTY_FORM = { name: "", gender: "male", date: "", time: "06:00", place: "
 
 // ---- Result cache: the same birth details never hit FreeAstroApi twice ----
 // The chart depends only on date + time + place, so name and gender are not part of the key.
-const CACHE_KEY = "kundli_chart_cache_v1";
+// v2: older cached charts could have been built with wrong coordinates or placeholder data
+const CACHE_KEY = "kundli_chart_cache_v2";
 const CACHE_MAX = 25;
 
 function cacheKey(form) {
@@ -65,6 +66,7 @@ function assembleChart(form, c) {
         time: form.time,
         place: form.place,
         ascendant: c.ascendant,
+        ascendant_degree: c.ascendant_degree,
         moon_sign: c.moon_sign,
         sun_sign: c.sun_sign,
         nakshatra: c.nakshatra,
@@ -96,6 +98,7 @@ function chartFromProfile(profile) {
         time: profile.time_of_birth,
         place: profile.place,
         ascendant: profile.ascendant,
+        ascendant_degree: profile.ascendant_degree,
         moon_sign: profile.moon_sign,
         sun_sign: profile.sun_sign,
         nakshatra: profile.nakshatra,
@@ -170,6 +173,7 @@ export default function Kundli() {
                     time_of_birth: form.time || "06:00",
                     place: form.place,
                     ascendant: built.ascendant,
+                    ascendant_degree: built.ascendant_degree,
                     moon_sign: built.moon_sign,
                     sun_sign: built.sun_sign,
                     nakshatra: built.nakshatra,
@@ -330,7 +334,7 @@ export default function Kundli() {
                                     <h3 className="font-display text-2xl font-semibold text-foreground">North Indian Chart</h3>
                                     {chart ? (
                                         <div className="mt-6">
-                                            <NorthChart houses={chart.houses} ascendant={chart.ascendant} planets={chart.planets} />
+                                            <NorthChart houses={chart.houses} ascendant={chart.ascendant} ascDegree={chart.ascendant_degree} planets={chart.planets} />
                                             <div className="mt-6 grid grid-cols-2 gap-3 text-sm">
                                                 <div className="border border-border p-3">
                                                     <div className="text-xs uppercase tracking-widest text-muted-foreground">Name</div>

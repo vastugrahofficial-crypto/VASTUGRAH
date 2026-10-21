@@ -2,13 +2,15 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { BadgeCheck, Star, Languages, Award } from "lucide-react";
-import { Image } from "@/components/ui/image";
+
+// Placeholder portrait. To host it yourself: save a picture into public/images/ and use "/images/astrologer.jpg".
+const PORTRAIT = "https://media.base44.com/images/public/6acb4e24dc235007f51df03e/d57736bb8_generated_32c5a66a.jpg";
 
 const ASTROLOGERS = [
-    { name: "Acharya Nandini Verma", skills: "Marriage & Relationships · Birth Chart", exp: "12 yrs", rating: 4.9, langs: "Hindi, English", img: "https://media.base44.com/images/public/6acb4e24dc235007f51df03e/d57736bb8_generated_32c5a66a.jpg" },
-    { name: "Pandit Ramesh Shastri", skills: "Career · Vastu Audit", exp: "18 yrs", rating: 4.8, langs: "Hindi, English", img: "https://media.base44.com/images/public/6acb4e24dc235007f51df03e/d57736bb8_generated_32c5a66a.jpg" },
-    { name: "Jyotish Kavita Joshi", skills: "Numerology · Name Correction", exp: "9 yrs", rating: 4.9, langs: "Hindi, English", img: "https://media.base44.com/images/public/6acb4e24dc235007f51df03e/d57736bb8_generated_32c5a66a.jpg" },
-    { name: "Acharya Vikram Tripathi", skills: "Gemstone · Rudraksha Selection", exp: "15 yrs", rating: 4.7, langs: "Hindi, English", img: "https://media.base44.com/images/public/6acb4e24dc235007f51df03e/d57736bb8_generated_32c5a66a.jpg" },
+    { name: "Acharya Nandini Verma", skills: "Marriage & Relationships · Birth Chart", exp: "12 yrs", rating: 4.9, langs: "Hindi, English", img: PORTRAIT },
+    { name: "Pandit Ramesh Shastri", skills: "Career · Vastu Audit", exp: "18 yrs", rating: 4.8, langs: "Hindi, English", img: PORTRAIT },
+    { name: "Jyotish Kavita Joshi", skills: "Numerology · Name Correction", exp: "9 yrs", rating: 4.9, langs: "Hindi, English", img: PORTRAIT },
+    { name: "Acharya Vikram Tripathi", skills: "Gemstone · Rudraksha Selection", exp: "15 yrs", rating: 4.7, langs: "Hindi, English", img: PORTRAIT },
 ];
 
 export default function Astrologers() {
@@ -30,7 +32,7 @@ export default function Astrologers() {
                     {ASTROLOGERS.map((a) => (
                         <div key={a.name} className="group bg-card p-4 transition-colors hover:bg-secondary sm:p-6">
                             <div className="relative mb-5 aspect-square overflow-hidden border border-border">
-                                <Image src={a.img} alt={a.name} fittingType="fill" className="h-full w-full transition-transform duration-700 group-hover:scale-105" />
+                                <img src={a.img} alt={a.name} loading="lazy" className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
                                 <div className="absolute right-2 top-2 flex items-center gap-1 bg-background/90 px-2 py-1 text-[10px] text-primary">
                                     <BadgeCheck className="h-3 w-3" /> Verified
                                 </div>

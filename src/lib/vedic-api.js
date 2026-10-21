@@ -1,7 +1,7 @@
 // VASTUGRAH Vedic Astrology & Panchang Engine
-// Powered by server-side FreeAstroAPI integration with resilient offline fallback
+// Powered by server-side FreeAstroAPI integration
 
-import { askAstrologer, getDailyHoroscope as geminiDailyHoroscope } from './gemini';
+import { getDailyHoroscope as geminiDailyHoroscope } from './gemini';
 import { INDIAN_CITIES } from './cities';
 
 const NAKSHATRAS = [
@@ -33,8 +33,6 @@ const KARANAS = ["Bava", "Balava", "Kaulava", "Taitila", "Gara", "Vanija", "Vish
 
 const RASHIS = ["Mesha (Aries)", "Vrishabha (Taurus)", "Mithuna (Gemini)", "Karka (Cancer)", "Simha (Leo)", "Kanya (Virgo)", "Tula (Libra)", "Vrishchika (Scorpio)", "Dhanu (Sagittarius)", "Makara (Capricorn)", "Kumbha (Aquarius)", "Meena (Pisces)"];
 
-const SIGNS_FULL = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"];
-
 // Seeded pseudorandom from date or string
 function getHash(str) {
   let hash = 0;
@@ -45,7 +43,32 @@ function getHash(str) {
   return Math.abs(hash);
 }
 
-// Local Panchang computation fallback
+// ---------- Time helpers ----------
+
+// "06:27:14" / "07:58" / "6:27 AM"  ->  minutes after midnight (null if unreadable)
+function toMinutes(t) {
+  if (!t) return null;
+  const m = String(t).match(/(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?/i);
+  if (!m) return null;
+  let h = Number(m[1]);
+  const min = Number(m[2]);
+  const ap = m[3] ? m[3].toUpperCase() : null;
+  if (ap === "PM" && h < 12) h += 12;
+  if (ap === "AM" && h === 12) h = 0;
+  return h * 60 + min;
+}
+
+// minutes after midnight -> "06:27 AM"
+function fmt12(mins) {
+  const total = ((Math.round(mins) % 1440) + 1440) % 1440;
+  const h24 = Math.floor(total / 60);
+  const m = total % 60;
+  const ap = h24 >= 12 ? "PM" : "AM";
+  const h = h24 % 12 || 12;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ap}`;
+}
+
+// Local Panchang computation fallback (approximate, used only if the live service is unreachable)
 export function getLocalDailyPanchang(dateStr) {
   const d = dateStr ? new Date(dateStr) : new Date();
   const dayKey = d.toISOString().slice(0, 10);
@@ -126,27 +149,43 @@ export async function getDailyPanchang(dateStr, coords) {
       const data = await res.json();
       const tithiStr = data.tithi?.paksha
         ? `${data.tithi.name} (${data.tithi.paksha} Paksha)`
-        : (data.tithi?.name || "Shukla Pratipada");
+        : (data.tithi?.name || "—");
       const nakshatraStr = data.nakshatra
         ? `${data.nakshatra.name}${data.nakshatra.pada ? ` (Pada ${data.nakshatra.pada})` : ""}`
-        : "Ashwini";
+        : "—";
       const moonSign = data.request_time_panchang?.moon_sign?.name
         ? `${data.request_time_panchang.moon_sign.name}`
-        : (data.lunar_month?.name || "Mesha (Aries)");
+        : (data.lunar_month?.name || "—");
+
+      // Times from the API are 24-hour ("06:27:14"); show them as 12-hour like the rest of the page
+      const sr = toMinutes(data.sunrise);
+      const ss = toMinutes(data.sunset);
+      const rahuS = toMinutes(data.rahu_kalam?.start);
+      const rahuE = toMinutes(data.rahu_kalam?.end);
+
+      // Worked out from this day's real sunrise and sunset, so they change with the date and place
+      let abhijit = "—";
+      let brahma = "—";
+      if (sr != null && ss != null && ss > sr) {
+        const noon = (sr + ss) / 2;
+        const half = (ss - sr) / 30; // Abhijit = the middle one of the day's 15 muhurtas
+        abhijit = `${fmt12(noon - half)} – ${fmt12(noon + half)}`;
+        brahma = `${fmt12(sr - 96)} – ${fmt12(sr - 48)}`; // 96 to 48 minutes before sunrise
+      }
 
       return {
         tithi: tithiStr,
         nakshatra: nakshatraStr,
-        yoga: data.yoga?.name || "Siddhi",
-        karana: data.karanas?.[0]?.name || "Bava",
+        yoga: data.yoga?.name || "—",
+        karana: data.karanas?.[0]?.name || "—",
         moon_sign: moonSign,
-        rahu_kaal: data.rahu_kalam?.start ? `${data.rahu_kalam.start} – ${data.rahu_kalam.end}` : "10:30 AM – 12:00 PM",
-        abhijit_muhurat: "11:48 AM – 12:36 PM",
-        amrit_kaal: "02:14 PM – 03:48 PM",
-        brahma_muhurat: "04:32 AM – 05:20 AM",
+        rahu_kaal: rahuS != null && rahuE != null ? `${fmt12(rahuS)} – ${fmt12(rahuE)}` : "—",
+        abhijit_muhurat: abhijit,
+        amrit_kaal: "—",
+        brahma_muhurat: brahma,
         significance: `Auspicious ${data.tithi?.paksha || "Shukla"} Paksha day under ${data.nakshatra?.name || "favourable"} Nakshatra. Perfect for dharmic activities, home harmony and spiritual focus.`,
-        sunrise: data.sunrise || "06:15 AM",
-        sunset: data.sunset || "06:30 PM",
+        sunrise: sr != null ? fmt12(sr) : "—",
+        sunset: ss != null ? fmt12(ss) : "—",
       };
     }
   } catch (err) {
@@ -290,51 +329,18 @@ export async function getDailyHoroscope(signName) {
   return HOROSCOPE_DATA[signName] || HOROSCOPE_DATA["Aries"];
 }
 
-// Local deterministic Kundli calculation fallback
-function computeLocalChart({ name, gender, date, time, place }) {
-  const hash = getHash(`${name}_${date}_${time}_${place}`);
-  const ascIdx = hash % 12;
-  const moonIdx = (hash + 3) % 12;
-  const sunIdx = (hash + 7) % 12;
-  const nakIdx = hash % NAKSHATRAS.length;
-
-  const SIGNS = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"];
-
-  const planets = [
-    { planet: "Sun", sign: SIGNS[sunIdx], house: ((sunIdx - ascIdx + 12) % 12) + 1, degree: `${(hash % 28) + 1}° ${(hash % 50)}'` },
-    { planet: "Moon", sign: SIGNS[moonIdx], house: ((moonIdx - ascIdx + 12) % 12) + 1, degree: `${((hash + 4) % 28) + 1}° 14'` },
-    { planet: "Mars", sign: SIGNS[(hash + 1) % 12], house: (((hash + 1) % 12 - ascIdx + 12) % 12) + 1, degree: `${((hash + 2) % 28) + 1}° 32'` },
-    { planet: "Mercury", sign: SIGNS[(sunIdx + 1) % 12], house: (((sunIdx + 1) % 12 - ascIdx + 12) % 12) + 1, degree: `${((hash + 5) % 28) + 1}° 45'` },
-    { planet: "Jupiter", sign: SIGNS[(hash + 5) % 12], house: (((hash + 5) % 12 - ascIdx + 12) % 12) + 1, degree: `${((hash + 6) % 28) + 1}° 10'` },
-    { planet: "Venus", sign: SIGNS[(sunIdx + 11) % 12], house: (((sunIdx + 11) % 12 - ascIdx + 12) % 12) + 1, degree: `${((hash + 7) % 28) + 1}° 50'` },
-    { planet: "Saturn", sign: SIGNS[(hash + 8) % 12], house: (((hash + 8) % 12 - ascIdx + 12) % 12) + 1, degree: `${((hash + 9) % 28) + 1}° 02'` },
-    { planet: "Rahu", sign: SIGNS[(hash + 10) % 12], house: (((hash + 10) % 12 - ascIdx + 12) % 12) + 1, degree: `${((hash + 11) % 28) + 1}° 29'` },
-    { planet: "Ketu", sign: SIGNS[(hash + 4) % 12], house: (((hash + 4) % 12 - ascIdx + 12) % 12) + 1, degree: `${((hash + 11) % 28) + 1}° 29'` }
-  ];
-
-  const dashas = [
-    { lord: "Jupiter", start: "2018", end: "2034", current: true },
-    { lord: "Saturn", start: "2034", end: "2053", current: false },
-    { lord: "Mercury", start: "2053", end: "2070", current: false }
-  ];
-
-  return {
-    ascendant: SIGNS[ascIdx],
-    moon_sign: SIGNS[moonIdx],
-    sun_sign: SIGNS[sunIdx],
-    nakshatra: NAKSHATRAS[nakIdx],
-    nakshatra_pada: (hash % 4) + 1,
-    nakshatra_lord: ["Ketu", "Venus", "Sun", "Moon", "Mars", "Rahu", "Jupiter", "Saturn", "Mercury"][nakIdx % 9],
-    current_mahadasha: "Jupiter (Guru)",
-    planets,
-    dashas
-  };
-}
-
-// Convert FreeAstroAPI response to VASTUGRAH standard chart format
-function mapFreeAstroChart(chart, dashaData, form) {
+// Convert the FreeAstroAPI response into VASTUGRAH's chart format.
+//   chart      : the D1 chart  (ascendant, planets, houses, sade_sati)
+//   dashaData  : the Vimshottari dasha payload  (timeline, active_periods, ...)
+//   extras     : the full response, so yogas / vargas / panchang / shadbala / ashtakavarga
+//                are passed along as soon as the server sends them
+function mapFreeAstroChart(chart, dashaData, extras = {}) {
   const asc = chart.ascendant;
   const planets = chart.planets || [];
+
+  if (!asc?.sign || !planets.length) {
+    throw new Error("The chart service returned incomplete data");
+  }
 
   const moonPlanet = planets.find((p) => p.name?.toLowerCase() === "moon");
   const sunPlanet = planets.find((p) => p.name?.toLowerCase() === "sun");
@@ -345,95 +351,115 @@ function mapFreeAstroChart(chart, dashaData, form) {
     house: p.house,
     degree: p.degree_in_sign != null ? p.degree_in_sign.toFixed(2) : p.absolute_degree?.toFixed(2),
     nakshatra: p.nakshatra,
+    pada: p.pada,
+    nakshatra_lord: p.nakshatra_lord,
     retrograde: Boolean(p.is_retrograde),
   }));
 
-  let dashas = [];
-  if (dashaData?.dasha_timeline && Array.isArray(dashaData.dasha_timeline)) {
-    dashas = dashaData.dasha_timeline.map((d) => ({
-      lord: d.lord || d.planet || "Graha",
-      start: String(d.start_date || d.start || "").slice(0, 4),
-      end: String(d.end_date || d.end || "").slice(0, 4),
-      current: Boolean(d.is_active || d.current),
-    }));
-  } else if (dashaData?.mahadashas && Array.isArray(dashaData.mahadashas)) {
-    dashas = dashaData.mahadashas.map((d) => ({
-      lord: d.lord || d.planet || "Graha",
-      start: String(d.start_year || d.start || "").slice(0, 4),
-      end: String(d.end_year || d.end || "").slice(0, 4),
-      current: Boolean(d.current),
-    }));
-  } else {
-    dashas = [
-      { lord: moonPlanet?.nakshatra_lord || "Jupiter", start: "2018", end: "2034", current: true },
-      { lord: "Saturn", start: "2034", end: "2053", current: false },
-      { lord: "Mercury", start: "2053", end: "2070", current: false },
-    ];
-  }
+  // ----- Dasha: real periods only, never invented ones -----
+  const today = new Date().toISOString().slice(0, 10);
+  const rawTimeline = dashaData?.timeline || dashaData?.dasha_timeline || dashaData?.mahadashas || [];
 
-  const activeDasha = dashas.find((d) => d.current) || dashas[0];
-  const currentMahadasha = activeDasha ? `${activeDasha.lord}` : (moonPlanet?.nakshatra_lord || "Jupiter");
+  const dashas = rawTimeline.map((d) => {
+    const s = String(d.start || d.start_date || d.start_year || "");
+    const e = String(d.end || d.end_date || d.end_year || "");
+    const hasDates = s.length >= 10 && e.length >= 10;
+    const isCurrent = d.is_active ?? d.current ?? (hasDates ? s.slice(0, 10) <= today && today < e.slice(0, 10) : false);
+    return {
+      lord: d.lord || d.planet || "Graha",
+      start: s.slice(0, 4),
+      end: e.slice(0, 4),
+      start_date: s.slice(0, 10),
+      end_date: e.slice(0, 10),
+      current: Boolean(isCurrent),
+    };
+  });
+
+  // The API lists the running periods from the largest down: [Mahadasha, next level, ...]
+  const active = Array.isArray(dashaData?.active_periods) ? dashaData.active_periods : [];
+  const activeMaha = active[0] || null;
+  const activeSub = active[1] || null;
+  const fallbackMaha = dashas.find((d) => d.current);
 
   return {
-    ascendant: asc?.sign || "Aries",
-    moon_sign: moonPlanet?.sign || "Taurus",
-    sun_sign: sunPlanet?.sign || "Leo",
-    nakshatra: moonPlanet?.nakshatra || asc?.nakshatra?.name || "Ashwini",
+    ascendant: asc.sign,
+    ascendant_degree: typeof asc.degree === "number" ? asc.degree % 30 : undefined,
+    moon_sign: moonPlanet?.sign || "—",
+    sun_sign: sunPlanet?.sign || "—",
+    nakshatra: moonPlanet?.nakshatra || asc?.nakshatra?.name || "—",
     nakshatra_pada: moonPlanet?.pada || asc?.nakshatra?.pada || 1,
-    nakshatra_lord: moonPlanet?.nakshatra_lord || asc?.nakshatra?.lord || "Mars",
-    current_mahadasha: currentMahadasha,
+    nakshatra_lord: moonPlanet?.nakshatra_lord || asc?.nakshatra?.lord || "—",
+    current_mahadasha: activeMaha?.lord || fallbackMaha?.lord || "—",
+    current_antardasha: activeSub?.lord || null,
+    active_periods: active,
     planets: mappedPlanets,
     dashas,
     sade_sati: chart.sade_sati,
+    // Extra data, present when the server uses the all-in-one endpoint
+    vargas: extras.vargas || null,
+    yogas: extras.yogas || null,
+    panchang: extras.panchang || null,
+    shadbala: extras.shadbala || null,
+    ashtakavarga: extras.ashtakavarga || null,
   };
 }
 
 /**
- * Compute Vedic Kundli Chart via server-side FreeAstroAPI proxy
+ * Compute Vedic Kundli Chart via server-side FreeAstroAPI proxy.
+ * Throws if the chart cannot be calculated, so the page can show an error
+ * instead of a made-up chart.
  */
 export async function computeChart({ name, gender, date, time, place }) {
-  try {
-    const [year, month, day] = (date || "1995-01-01").split("-").map(Number);
-    const [hour, minute] = (time || "12:00").split(":").map(Number);
+  if (!date) throw new Error("Birth date is required");
 
-    const matchedCity = INDIAN_CITIES.find(
-      (c) =>
-        c.name.toLowerCase() === (place || "").toLowerCase() ||
-        (place || "").toLowerCase().includes(c.name.toLowerCase())
-    );
+  const [year, month, day] = date.split("-").map(Number);
+  const parts = (time || "12:00").split(":").map(Number);
+  // 0 is a real hour (midnight births), so check for a number instead of using ||
+  const hour = Number.isFinite(parts[0]) ? parts[0] : 12;
+  const minute = Number.isFinite(parts[1]) ? parts[1] : 0;
 
-    const payload = {
-      year,
-      month,
-      day,
-      hour: hour || 12,
-      minute: minute || 0,
-      city: matchedCity?.name || place || "New Delhi",
-      lat: matchedCity?.lat || 28.6139,
-      lng: matchedCity?.lon || 77.2090,
-      tz_str: matchedCity?.timezone || "Asia/Kolkata",
-      ayanamsha: "lahiri",
-      house_system: "whole_sign",
-      node_type: "mean",
-    };
+  const matchedCity = INDIAN_CITIES.find(
+    (c) =>
+      c.name.toLowerCase() === (place || "").toLowerCase() ||
+      (place || "").toLowerCase().includes(c.name.toLowerCase())
+  );
 
-    const res = await fetch("/api/astrology/chart", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+  const payload = {
+    year,
+    month,
+    day,
+    hour,
+    minute,
+    city: matchedCity?.name || place || "New Delhi",
+    ayanamsha: "lahiri",
+    house_system: "whole_sign",
+    node_type: "mean",
+  };
 
-    if (res.ok) {
-      const data = await res.json();
-      if (data.chart) {
-        return mapFreeAstroChart(data.chart, data.dasha, { name, gender, date, time, place });
-      }
-    }
-  } catch (err) {
-    console.warn("[VASTUGRAH] FreeAstroAPI chart error, using local fallback:", err);
+  // Send coordinates only when the place is known. Otherwise the service looks the city up by name,
+  // instead of silently using Delhi's coordinates for everyone (the ascendant depends on location).
+  if (matchedCity) {
+    payload.lat = matchedCity.lat;
+    payload.lng = matchedCity.lon;
+    payload.tz_str = matchedCity.timezone || "Asia/Kolkata";
   }
 
-  return computeLocalChart({ name, gender, date, time, place });
+  const res = await fetch("/api/astrology/chart", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Chart service returned ${res.status}`);
+  }
+
+  const data = await res.json();
+  if (!data.chart) {
+    throw new Error("Chart service returned no chart");
+  }
+
+  return mapFreeAstroChart(data.chart, data.dasha || data.vimshottari_dasha, data);
 }
 
 // Local birth profile storage
