@@ -86,13 +86,13 @@ export default function Footer() {
                         </p>
                         <div className="mt-6 space-y-2 text-sm text-muted-foreground">
                             <div className="flex items-center gap-3">
-                                <Mail className="h-4 w-4 text-primary" /> hello@vastugrah.com
+                                <Mail className="h-4 w-4 text-primary" /> vastugrahofficial@gmail.com
                             </div>
                             <div className="flex items-center gap-3">
-                                <Phone className="h-4 w-4 text-primary" /> +91 00000 00000
+                                <Phone className="h-4 w-4 text-primary" /> +91 9311001071
                             </div>
                             <div className="flex items-center gap-3">
-                                <MapPin className="h-4 w-4 text-primary" /> Varanasi, India
+                                <MapPin className="h-4 w-4 text-primary" /> Faridabad, Haryana - INDIA
                             </div>
                         </div>
                     </div>
