@@ -19,7 +19,7 @@ const EMPTY_FORM = { name: "", gender: "male", date: "", time: "06:00", place: "
 // The chart depends only on date + time + place, so name and gender are not part of the key.
 // v2: older cached charts could have been built with wrong coordinates or placeholder data
 const CACHE_KEY = "kundli_chart_cache_v2";
-const CACHE_MAX = 25;
+const CACHE_MAX = 10;
 
 function cacheKey(form) {
     return [form.date, form.time, (form.place || "").trim().toLowerCase()].join("|");
@@ -73,6 +73,15 @@ function assembleChart(form, c) {
         nakshatra_pada: c.nakshatra_pada,
         nakshatra_lord: c.nakshatra_lord,
         current_mahadasha: c.current_mahadasha,
+        current_antardasha: c.current_antardasha,
+        active_periods: c.active_periods,
+        sade_sati: c.sade_sati,
+        // Larger extras: shown right after calculating, not stored in the saved profile
+        yogas: c.yogas,
+        vargas: c.vargas,
+        shadbala: c.shadbala,
+        ashtakavarga: c.ashtakavarga,
+        panchang: c.panchang,
         planets: c.planets || [],
         dashas: c.dashas || [],
         houses,
@@ -102,6 +111,10 @@ function chartFromProfile(profile) {
         moon_sign: profile.moon_sign,
         sun_sign: profile.sun_sign,
         nakshatra: profile.nakshatra,
+        current_mahadasha: profile.current_mahadasha,
+        current_antardasha: profile.current_antardasha,
+        active_periods: profile.active_periods,
+        sade_sati: profile.sade_sati,
         planets: profile.planets || [],
         dashas: profile.dashas || [],
         houses: profile.houses,
@@ -177,6 +190,10 @@ export default function Kundli() {
                     moon_sign: built.moon_sign,
                     sun_sign: built.sun_sign,
                     nakshatra: built.nakshatra,
+                    current_mahadasha: built.current_mahadasha,
+                    current_antardasha: built.current_antardasha,
+                    active_periods: built.active_periods,
+                    sade_sati: built.sade_sati,
                     houses: built.houses,
                     planets: built.planets,
                     dashas: built.dashas,

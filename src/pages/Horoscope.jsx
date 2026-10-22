@@ -82,7 +82,7 @@ export default function Horoscope() {
             <PageHeader
                 eyebrow="Daily Horoscope · Free"
                 title="Your Zodiac Forecast"
-                description="Today's accurate guidance for your sign — drawn from the planetary movements of the Grahas."
+                description="Today's guidance for your sign — drawn from the planetary movements of the Grahas."
             />
 
             <section className="py-8 sm:py-16">
@@ -148,7 +148,14 @@ export default function Horoscope() {
                                 <>
                                     <div className="mt-8 flex items-start gap-3">
                                         <Star className="mt-1 h-5 w-5 shrink-0 text-primary" />
-                                        <p className="max-w-3xl text-lg leading-relaxed text-foreground/90">{horo.forecast}</p>
+                                        <div>
+                                            <p className="max-w-3xl text-lg leading-relaxed text-foreground/90">{horo.forecast}</p>
+                                            {horo.source === "ai" && (
+                                                <p className="mt-3 text-xs text-muted-foreground">
+                                                    AI-written guidance — the live planetary forecast was unavailable just now.
+                                                </p>
+                                            )}
+                                        </div>
                                     </div>
                                     <div className="mt-8 grid grid-cols-2 gap-px overflow-hidden border border-border bg-border sm:grid-cols-4">
                                         {[

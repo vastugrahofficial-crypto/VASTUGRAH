@@ -68,7 +68,8 @@ function fmt12(mins) {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ap}`;
 }
 
-// Local Panchang computation fallback (approximate, used only if the live service is unreachable)
+// NOT real data: placeholder values from a date hash. getDailyPanchang no longer uses this.
+// If another component still imports it, replace that with getDailyPanchang.
 export function getLocalDailyPanchang(dateStr) {
   const d = dateStr ? new Date(dateStr) : new Date();
   const dayKey = d.toISOString().slice(0, 10);
@@ -117,82 +118,122 @@ export function getLocalDailyPanchang(dateStr) {
   };
 }
 
+// ---------- Small cache: the same day and place always give the same answer, so reuse it ----------
+// This saves FreeAstroAPI requests and makes repeat visits instant.
+function cacheGet(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function cacheSet(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // storage full or blocked: everything still works, just without the cache
+  }
+}
+
+// Remove yesterday's (and older) entries for a prefix, keeping only keys that end with today's date
+function pruneDaily(prefix, today) {
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(prefix) && !k.endsWith(today)) localStorage.removeItem(k);
+    }
+  } catch {
+    // ignore
+  }
+}
+
+// Today's date in India, as YYYY-MM-DD (the horoscope service works on Indian time)
+function istDate() {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+}
+
+// End time like "25:42:19" -> "01:42 AM (next day)"
+function fmtEnd(t) {
+  const m = toMinutes(t);
+  if (m == null) return null;
+  return fmt12(m) + (m >= 1440 ? " (next day)" : "");
+}
+
 /**
- * Fetch Live Panchang via server-side FreeAstroAPI proxy with local fallback
+ * Fetch the live Panchang from FreeAstroAPI (through the server proxy).
+ * coords (optional): { lat, lng | lon, name, timezone }. Without it, New Delhi is used.
+ * Throws if the live Panchang cannot be loaded; it never returns made-up values.
  */
 export async function getDailyPanchang(dateStr, coords) {
-  try {
-    const d = dateStr ? new Date(dateStr) : new Date();
-    const year = d.getFullYear();
-    const month = d.getMonth() + 1;
-    const day = d.getDate();
-    const lat = coords?.lat || 28.6139;
-    const lng = coords?.lng || coords?.lon || 77.2090;
+  const d = dateStr ? new Date(`${dateStr}T12:00:00`) : new Date();
+  const year = d.getFullYear();
+  const month = d.getMonth() + 1;
+  const day = d.getDate();
 
-    const res = await fetch("/api/astrology/panchang", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        year,
-        month,
-        day,
-        hour: 12,
-        minute: 0,
-        city: "New Delhi",
-        lat,
-        lng,
-        tz_str: "Asia/Kolkata",
-      }),
-    });
+  const lng0 = coords ? (coords.lng ?? coords.lon) : null;
+  const hasCoords = coords && coords.lat != null && lng0 != null;
+  const lat = hasCoords ? Number(coords.lat) : 28.6139;
+  const lng = hasCoords ? Number(lng0) : 77.2090;
+  const cityName = hasCoords ? (coords.name || "Selected location") : "New Delhi";
+  const tz = hasCoords ? (coords.timezone || "Asia/Kolkata") : "Asia/Kolkata";
 
-    if (res.ok) {
-      const data = await res.json();
-      const tithiStr = data.tithi?.paksha
-        ? `${data.tithi.name} (${data.tithi.paksha} Paksha)`
-        : (data.tithi?.name || "—");
-      const nakshatraStr = data.nakshatra
-        ? `${data.nakshatra.name}${data.nakshatra.pada ? ` (Pada ${data.nakshatra.pada})` : ""}`
-        : "—";
-      const moonSign = data.request_time_panchang?.moon_sign?.name
-        ? `${data.request_time_panchang.moon_sign.name}`
-        : (data.lunar_month?.name || "—");
+  const key = `vg_panchang_${year}-${month}-${day}_${lat.toFixed(2)}_${lng.toFixed(2)}`;
+  const cached = cacheGet(key);
+  if (cached) return cached;
 
-      // Times from the API are 24-hour ("06:27:14"); show them as 12-hour like the rest of the page
-      const sr = toMinutes(data.sunrise);
-      const ss = toMinutes(data.sunset);
-      const rahuS = toMinutes(data.rahu_kalam?.start);
-      const rahuE = toMinutes(data.rahu_kalam?.end);
+  const res = await fetch("/api/astrology/panchang", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ year, month, day, hour: 12, minute: 0, city: cityName, lat, lng, tz_str: tz }),
+  });
 
-      // Worked out from this day's real sunrise and sunset, so they change with the date and place
-      let abhijit = "—";
-      let brahma = "—";
-      if (sr != null && ss != null && ss > sr) {
-        const noon = (sr + ss) / 2;
-        const half = (ss - sr) / 30; // Abhijit = the middle one of the day's 15 muhurtas
-        abhijit = `${fmt12(noon - half)} – ${fmt12(noon + half)}`;
-        brahma = `${fmt12(sr - 96)} – ${fmt12(sr - 48)}`; // 96 to 48 minutes before sunrise
-      }
+  if (!res.ok) throw new Error(`Panchang service returned ${res.status}`);
+  const data = await res.json();
+  if (!data || !data.tithi) throw new Error("Panchang service returned no data");
 
-      return {
-        tithi: tithiStr,
-        nakshatra: nakshatraStr,
-        yoga: data.yoga?.name || "—",
-        karana: data.karanas?.[0]?.name || "—",
-        moon_sign: moonSign,
-        rahu_kaal: rahuS != null && rahuE != null ? `${fmt12(rahuS)} – ${fmt12(rahuE)}` : "—",
-        abhijit_muhurat: abhijit,
-        amrit_kaal: "—",
-        brahma_muhurat: brahma,
-        significance: `Auspicious ${data.tithi?.paksha || "Shukla"} Paksha day under ${data.nakshatra?.name || "favourable"} Nakshatra. Perfect for dharmic activities, home harmony and spiritual focus.`,
-        sunrise: sr != null ? fmt12(sr) : "—",
-        sunset: ss != null ? fmt12(ss) : "—",
-      };
-    }
-  } catch (err) {
-    console.warn("[VASTUGRAH] FreeAstroAPI Panchang unavailable, using local calculation:", err);
+  const paksha = data.tithi?.paksha || null;
+  const sr = toMinutes(data.sunrise);
+  const ss = toMinutes(data.sunset);
+  const rahuS = toMinutes(data.rahu_kalam?.start);
+  const rahuE = toMinutes(data.rahu_kalam?.end);
+
+  // Worked out from this day's real sunrise and sunset, so they change with the date and place
+  let abhijit = "—";
+  let brahma = "—";
+  if (sr != null && ss != null && ss > sr) {
+    const noon = (sr + ss) / 2;
+    const half = (ss - sr) / 30; // Abhijit = the middle one of the day's 15 muhurtas
+    abhijit = `${fmt12(noon - half)} – ${fmt12(noon + half)}`;
+    brahma = `${fmt12(sr - 96)} – ${fmt12(sr - 48)}`; // 96 to 48 minutes before sunrise
   }
 
-  return getLocalDailyPanchang(dateStr);
+  const result = {
+    tithi: paksha ? `${data.tithi.name} (${paksha} Paksha)` : (data.tithi.name || "—"),
+    tithi_ends: fmtEnd(data.tithi?.ends_at),
+    nakshatra: data.nakshatra
+      ? `${data.nakshatra.name}${data.nakshatra.pada ? ` (Pada ${data.nakshatra.pada})` : ""}`
+      : "—",
+    nakshatra_ends: fmtEnd(data.nakshatra?.ends_at),
+    yoga: data.yoga?.name || "—",
+    yoga_ends: fmtEnd(data.yoga?.ends_at),
+    karana: data.karanas?.[0]?.name || "—",
+    karana_ends: fmtEnd(data.karanas?.[0]?.ends_at),
+    moon_sign: data.request_time_panchang?.moon_sign?.name || "—",
+    rahu_kaal: rahuS != null && rahuE != null ? `${fmt12(rahuS)} – ${fmt12(rahuE)}` : "—",
+    abhijit_muhurat: abhijit,
+    brahma_muhurat: brahma,
+    sunrise: sr != null ? fmt12(sr) : "—",
+    sunset: ss != null ? fmt12(ss) : "—",
+    paksha,
+    lunar_month: data.lunar_month?.name || null,
+    vikram_samvat: data.lunar_month?.vikram_samvat || null,
+    place: cityName,
+  };
+
+  cacheSet(key, result);
+  return result;
 }
 
 export const HOROSCOPE_DATA = {
@@ -282,51 +323,76 @@ export const HOROSCOPE_DATA = {
   }
 };
 
+// Cut AI text at the end of a sentence instead of in the middle of a word
+function trimToSentence(text, max = 600) {
+  const clean = String(text).replace(/\*\*/g, "").replace(/\s+/g, " ").trim();
+  if (clean.length <= max) return clean;
+  const cut = clean.slice(0, max);
+  const last = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("! "), cut.lastIndexOf("? "));
+  return last > 200 ? cut.slice(0, last + 1) : cut;
+}
+
 /**
- * Fetch Daily Horoscope via server-side FreeAstroAPI proxy
+ * Daily horoscope for one sign.
+ *  1. Live forecast from FreeAstroAPI (cached for the day, so a sign costs one request per day per browser)
+ *  2. If that fails, an AI-written forecast from Gemini, marked source: "ai"
+ *  3. If both fail, it throws, and the page shows its error message. It never shows a made-up forecast.
+ * lucky_number, lucky_color, favourable_direction and remedy are fixed traditional suggestions, not API data.
  */
 export async function getDailyHoroscope(signName) {
-  // 1. Try FreeAstroAPI live server endpoint
+  const today = istDate();
+  const key = `vg_horo_${signName.toLowerCase()}_${today}`;
+  const cached = cacheGet(key);
+  if (cached) return cached;
+
+  const fixed = HOROSCOPE_DATA[signName] || {};
+  const extras = {
+    lucky_number: (getHash(`${signName}${today}`) % 9) + 1,
+    lucky_color: fixed.lucky_color || "Saffron Gold",
+    favourable_direction: fixed.favourable_direction || "East",
+    remedy: fixed.remedy || "Chant the Gayatri Mantra daily.",
+  };
+
+  let result = null;
+
+  // 1. FreeAstroAPI
   try {
     const res = await fetch(`/api/astrology/horoscope?sign=${encodeURIComponent(signName.toLowerCase())}`);
     if (res.ok) {
       const data = await res.json();
       const interp = data?.data?.interpretation;
       if (interp && interp.summary) {
-        return {
+        result = {
           forecast: interp.summary,
           sections: interp.sections || [],
           overall_tone: interp.overall_tone || "supportive",
-          lucky_number: (getHash(signName) % 9) + 1,
-          lucky_color: HOROSCOPE_DATA[signName]?.lucky_color || "Saffron Gold",
-          favourable_direction: HOROSCOPE_DATA[signName]?.favourable_direction || "East",
-          remedy: HOROSCOPE_DATA[signName]?.remedy || "Chant Gayatri Mantra daily.",
+          source: "freeastroapi",
+          ...extras,
         };
       }
     }
   } catch (err) {
-    console.warn("[VASTUGRAH] FreeAstroAPI horoscope error, trying Gemini/fallback:", err);
+    console.warn("[VASTUGRAH] FreeAstroAPI horoscope error, trying Gemini:", err);
   }
 
-  // 2. Fall back to Gemini API if configured
-  try {
-    if (import.meta.env.VITE_GEMINI_API_KEY) {
+  // 2. Gemini (AI-written, labelled as such)
+  if (!result && import.meta.env.VITE_GEMINI_API_KEY) {
+    try {
       const text = await geminiDailyHoroscope(signName);
-      if (text) {
-        return {
-          forecast: text.replace(/\*\*/g, '').slice(0, 400),
-          lucky_number: (getHash(signName) % 9) + 1,
-          lucky_color: HOROSCOPE_DATA[signName]?.lucky_color || "Saffron",
-          favourable_direction: HOROSCOPE_DATA[signName]?.favourable_direction || "East",
-          remedy: HOROSCOPE_DATA[signName]?.remedy || "Chant Gayatri Mantra daily."
-        };
-      }
+      if (text) result = { forecast: trimToSentence(text), source: "ai", ...extras };
+    } catch (err) {
+      console.warn("[VASTUGRAH] Gemini horoscope error:", err);
     }
-  } catch (err) {
-    console.warn("Using local horoscope engine", err);
   }
 
-  return HOROSCOPE_DATA[signName] || HOROSCOPE_DATA["Aries"];
+  if (!result) throw new Error("Daily horoscope is unavailable right now");
+
+  // Cache only the live forecast; an AI fallback should not hide the real one for the rest of the day
+  if (result.source === "freeastroapi") {
+    pruneDaily("vg_horo_", today);
+    cacheSet(key, result);
+  }
+  return result;
 }
 
 // Convert the FreeAstroAPI response into VASTUGRAH's chart format.
@@ -400,7 +466,13 @@ function mapFreeAstroChart(chart, dashaData, extras = {}) {
     yogas: extras.yogas || null,
     panchang: extras.panchang || null,
     shadbala: extras.shadbala || null,
-    ashtakavarga: extras.ashtakavarga || null,
+    ashtakavarga: extras.ashtakavarga
+      ? {
+          sarvashtakavarga: extras.ashtakavarga.sarvashtakavarga,
+          bhinnashtakavarga: extras.ashtakavarga.bhinnashtakavarga,
+          total_points: extras.ashtakavarga.total_points,
+        }
+      : null,
   };
 }
 
