@@ -1,8 +1,9 @@
 import { useLocation } from "react-router-dom";
 
-const PHONE = "91XXXXXXXXXX"; // country code + number, no "+", spaces or dashes
-const MESSAGE = "Namaste, I would like to know more about Vastugrah.";
-const WHATSAPP_URL = `https://wa.me/${PHONE}?text=${encodeURIComponent(MESSAGE)}`;
+const PHONE = "+9311001071"; // country code + number, no "+", spaces or dashes
+const MESSAGE = `Hello Vastugrah
+I am interested in your Astrology and Vastu consultation services. Kindly share the details with me.`;
+const WHATSAPP_URL = `https://wa.me/9311001071?text=${encodeURIComponent(MESSAGE)}`;
 
 // Pages where the button should NOT appear. Add or remove paths as you like.
 const HIDDEN_ON = [
