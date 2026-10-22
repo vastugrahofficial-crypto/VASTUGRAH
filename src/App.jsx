@@ -11,6 +11,7 @@ import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ScrollToTop from './components/ScrollToTop';
+import FloatingWhatsApp from '@/components/FloatingWhatsApp';
 // Add page imports here
 import Layout from "@/components/Layout";
 import Home from "@/pages/Home";
@@ -49,27 +50,30 @@ const AuthenticatedApp = () => {
 
     // Render the main app
     return (
-        <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/reset-password" element={<ResetPassword />} />
-            <Route element={<Layout />}>
-                <Route path="/" element={<Home />} />
-                <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
-                    <Route path="/panchang" element={<Panchang />} />
-                    <Route path="/kundli" element={<Kundli />} />
-                    <Route path="/horoscope" element={<Horoscope />} />
-                    <Route path="/ai-astrologer" element={<AiAstrologer />} />
+        <>
+            <Routes>
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
+                <Route element={<Layout />}>
+                    <Route path="/" element={<Home />} />
+                    <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
+                        <Route path="/panchang" element={<Panchang />} />
+                        <Route path="/kundli" element={<Kundli />} />
+                        <Route path="/horoscope" element={<Horoscope />} />
+                        <Route path="/ai-astrologer" element={<AiAstrologer />} />
+                    </Route>
+                    <Route path="/consultation/chat" element={<ConsultationChat />} />
+                    <Route path="/consultation/call" element={<ConsultationCall />} />
+                    <Route path="/reports" element={<Reports />} />
+                    <Route path="/know-your-rudraksha" element={<KnowRudraksha />} />
+                    <Route path="/know-your-gemstone" element={<KnowGemstone />} />
                 </Route>
-                <Route path="/consultation/chat" element={<ConsultationChat />} />
-                <Route path="/consultation/call" element={<ConsultationCall />} />
-                <Route path="/reports" element={<Reports />} />
-                <Route path="/know-your-rudraksha" element={<KnowRudraksha />} />
-                <Route path="/know-your-gemstone" element={<KnowGemstone />} />
-            </Route>
-            <Route path="*" element={<PageNotFound />} />
-        </Routes>
+                <Route path="*" element={<PageNotFound />} />
+            </Routes>
+            <FloatingWhatsApp />
+        </>
     );
 };
 
