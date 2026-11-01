@@ -3,6 +3,7 @@ import { Link, NavLink } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 import ThemeToggle from "@/components/ThemeToggle";
 import MobileMenu from "@/components/MobileMenu";
+import logoMark from "@/assets/logo-mark.webp";
 import {
     Calendar,
     Sparkles,
@@ -39,28 +40,11 @@ function Logo() {
     return (
         <Link to="/" className="flex items-center gap-3 group">
             <div className="relative h-9 w-9 sm:h-11 sm:w-11 shrink-0">
-                <svg viewBox="0 0 44 44" className="h-full w-full mandala-spin-slow">
-                    <circle cx="22" cy="22" r="20" fill="none" stroke="hsl(var(--primary))" strokeWidth="0.6" opacity="0.5" />
-                    <circle cx="22" cy="22" r="14" fill="none" stroke="hsl(var(--primary))" strokeWidth="0.6" opacity="0.4" />
-                    {Array.from({ length: 12 }).map((_, i) => {
-                        const a = (i / 12) * Math.PI * 2;
-                        return (
-                            <line
-                                key={i}
-                                x1={22 + 14 * Math.cos(a)}
-                                y1={22 + 14 * Math.sin(a)}
-                                x2={22 + 20 * Math.cos(a)}
-                                y2={22 + 20 * Math.sin(a)}
-                                stroke="hsl(var(--primary))"
-                                strokeWidth="0.5"
-                                opacity="0.6"
-                            />
-                        );
-                    })}
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="h-2 w-2 rounded-full bg-primary glow-copper" />
-                </div>
+                <img
+                    src={logoMark}
+                    alt="VASTUGRAH"
+                    className="h-full w-full rounded-full object-cover"
+                />
             </div>
             <div className="leading-none">
                 <div className="font-display text-xl sm:text-2xl font-semibold tracking-[0.2em] text-foreground">
